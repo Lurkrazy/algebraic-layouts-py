@@ -21,7 +21,7 @@ template <typename T> struct SwizzleParams {
 
   constexpr T operator()(T row, T col) const {
     if (row_banks != 1) {
-      row = row / row_banks + (row % row_banks) * (total_rows / row_banks);
+      row = (row * row_banks) % total_rows + row  / (total_rows / row_banks);
     }
     if (col_mask != 0) {
       col = col ^ shiftl(row & col_mask, col_shift);
@@ -50,17 +50,23 @@ static constexpr auto make_swizzle() {
   int stride_bits = std::countr_zero(stride);
   int bank_bits = std::countr_zero(num_cols * num_rows);
   int col_bits = std::countr_zero(num_cols);
-  T row_banks = 1;
 
   // Handle non-power-of-two component
-  if (bank_bits < stride_bits && stride != (1 << stride_bits)) {
-    bank_bits = stride_bits;
-    row_banks = num_rows / stride_bits;
-    if (total_rows == 0 || total_rows % row_banks == 0)
+  if (stride != 1 << stride_bits && col_bits > stride_bits) {
+    T row_banks = 1 << (col_bits - stride_bits);
+    if (total_rows == 0 || total_rows % row_banks != 0)
       throw std::invalid_argument("total_rows must be divisible by row_banks");
+
+    SwizzleParams<T> result;
+    result.col_shift = 0;
+    result.col_mask = 0;
+    result.stride = stride;
+    result.row_banks = row_banks;
+    result.total_rows = total_rows;
+    return result;
   }
 
-  int col_shift = std::countr_zero(num_cols);
+  int col_shift = col_bits;
   T col_mask = (1 << (bank_bits - col_bits)) - 1;
 
   // Can't use the lowest bits for swizzling in this case
@@ -74,8 +80,8 @@ static constexpr auto make_swizzle() {
   result.col_shift = col_shift;
   result.col_mask = col_mask;
   result.stride = stride;
-  result.row_banks = row_banks;
-  result.total_rows = total_rows;
+  result.row_banks = 1;
+  result.total_rows = 0;
 
   return result;
 }

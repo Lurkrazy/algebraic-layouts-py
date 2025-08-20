@@ -33,14 +33,14 @@ static constexpr void print_params(const SwizzleParams<unsigned> &param,
 }
 
 template <unsigned num_rows, unsigned num_cols, unsigned stride,
-          unsigned total_rows = 0>
+          unsigned total_rows = num_rows>
 static void test(unsigned real_num_cols = stride,
                  unsigned bank_size = num_cols) {
   constexpr auto param =
       make_swizzle<unsigned, num_rows, num_cols, stride, total_rows>();
   print_params(param, num_cols);
-  print_layout(param, num_rows * stride / real_num_cols, real_num_cols,
-               num_rows * num_cols / bank_size, bank_size);
+  print_layout(param, std::max(total_rows, num_rows * stride / real_num_cols),
+               real_num_cols, num_rows * num_cols / bank_size, bank_size);
 }
 
 int main() {
@@ -48,6 +48,7 @@ int main() {
   test<8, 1, 4>();
   test<8, 1, 8>();
   test<8, 1, 16>();
+  test<8, 1, 32>();
 
   test<8, 4, 8>();
   test<8, 4, 16>();
@@ -65,8 +66,11 @@ int main() {
   test<16, 1, 16>();
 
   // Row-swizzling
-  test<8, 2, 24>(24);
+  test<4, 2, 5, 16>();
+  test<4, 2, 9, 16>();
+  test<2, 4, 9, 16>();
 
   test<4, 4, 32>(8);
   test<4, 4, 32>(16);
+  test<4, 2, 16>(8);
 }
