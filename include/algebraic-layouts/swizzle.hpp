@@ -23,7 +23,9 @@ template <typename T> struct SwizzleParams {
     if (row_banks != 1) {
       row = row / row_banks + (row % row_banks) * (total_rows / row_banks);
     }
-    col = col ^ shiftl(row & col_mask, col_shift);
+    if (col_mask != 0) {
+      col = col ^ shiftl(row & col_mask, col_shift);
+    }
     return row * stride + col;
   }
 };
@@ -37,6 +39,7 @@ template <typename T> struct SwizzleParams {
 /// @return a set of swizzle parameters
 template <typename T, T num_rows, T num_cols, T stride, T total_rows = 0>
 static constexpr auto make_swizzle() {
+  static_assert(std::unsigned_integral<T>, "T must be unsigned integral");
   static_assert(num_cols != 0 && (num_cols & (num_cols - 1)) == 0,
                 "num_cols must be a power of 2");
   static_assert(num_rows != 0 && (num_rows & (num_rows - 1)) == 0,
@@ -45,14 +48,12 @@ static constexpr auto make_swizzle() {
 
   // Factorize stride into stride_scalek * 2^stride_bits
   int stride_bits = std::countr_zero(stride);
-  T stride_scale = stride / (1 << stride_bits);
-
   int bank_bits = std::countr_zero(num_cols * num_rows);
   int col_bits = std::countr_zero(num_cols);
   T row_banks = 1;
 
   // Handle non-power-of-two component
-  if (bank_bits < stride_bits && stride_scale != 1) {
+  if (bank_bits < stride_bits && stride != (1 << stride_bits)) {
     bank_bits = stride_bits;
     row_banks = num_rows / stride_bits;
     if (total_rows == 0 || total_rows % row_banks == 0)
@@ -83,13 +84,14 @@ struct CuteSwizzleParams {
   int B, M, S;
 };
 
-static constexpr auto to_cute(unsigned stride, unsigned col_shift,
-                              unsigned col_mask, unsigned num_cols = 1) {
-  CuteSwizzleParams result;
-  result.B = std::popcount(col_mask);
-  result.M = std::countr_zero(num_cols);
-  unsigned col_mask_zeros = col_mask == 0 ? 0 : std::countr_zero(col_mask);
-  result.S = std::countr_zero(stride) + col_mask_zeros - result.M;
+template <typename T>
+static constexpr auto to_cute(const SwizzleParams<T> &param) {
+  CuteSwizzleParams result{};
+  if (param.col_mask == 0)
+    return result;
+  result.B = std::popcount(param.col_mask);
+  result.M = std::countr_zero(param.col_mask) + param.col_shift;
+  result.S = std::countr_zero(param.stride) - param.col_shift;
   return result;
 }
 

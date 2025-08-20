@@ -25,8 +25,7 @@ static void print_layout(const SwizzleParams<unsigned> &layout,
 
 static constexpr void print_params(const SwizzleParams<unsigned> &param,
                                    unsigned num_cols) {
-  auto cute_params =
-      to_cute(param.stride, param.col_shift, param.col_mask, num_cols);
+  auto cute_params = to_cute(param);
   printf("col_mask: 0x%x, col_shift: %d, stride: %d, row_banks: %d, "
          "total_rows: %d, cute::Swizzle<%d, %d, %d>\n",
          param.col_mask, param.col_shift, param.stride, param.row_banks,
